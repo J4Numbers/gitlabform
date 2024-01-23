@@ -120,3 +120,49 @@ class TestBranches:
             ]
         )
         assert merge_access_user_ids == []
+
+    def test__fine_grained_inheritance_break(
+        self,
+        group,
+        project,
+        branch,
+        other_branch,
+    ):
+        config_yaml = f"""
+        projects_and_groups:
+          {group.full_path}/*:
+            branches:
+              {branch}:
+                protected: true
+                allowed_to_push:
+                  - access_level: developer
+                allowed_to_merge:
+                  - access_level: developer
+                allowed_to_unprotect:
+                  - access_level: developer
+
+          {project.path_with_namespace}:
+            branches:
+              inherit: false
+              {branch}:
+                protected: true
+                allowed_to_push:
+                  - access_level: maintainer
+                allowed_to_merge:
+                  - access_level: maintainer
+                allowed_to_unprotect:
+                  - access_level: maintainer
+        """
+
+        run_gitlabform(config_yaml, project.path_with_namespace)
+
+        (
+            push_access_level,
+            merge_access_level,
+            _,
+            _,
+            unprotect_access_level,
+        ) = get_only_branch_access_levels(project, branch)
+        assert push_access_level is [AccessLevel.MAINTAINER.value]
+        assert merge_access_level is [AccessLevel.MAINTAINER.value]
+        assert unprotect_access_level is [AccessLevel.MAINTAINER.value]
